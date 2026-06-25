@@ -40,8 +40,7 @@ process.stdout.write("\n");
 
 const categories = [];
 for (const category of DEFAULT_CATEGORIES) {
-  const allPrompts = [...category.prompts, ...category.negativePrompts];
-  const inputs = tokenizer(allPrompts, { padding: true, truncation: true });
+  const inputs = tokenizer(category.prompts, { padding: true, truncation: true });
   const { text_embeds: textEmbeds } = await model(inputs);
   const promptEmbeddings = [];
   for (let row = 0; row < textEmbeds.dims[0]; row += 1) {
@@ -50,23 +49,17 @@ for (const category of DEFAULT_CATEGORIES) {
       l2Normalize(textEmbeds.data.slice(start, start + MODEL_CONFIG.embeddingDimension)),
     );
   }
-  const embedding = averageEmbeddings(promptEmbeddings.slice(0, category.prompts.length));
-  const negativeEmbedding = averageEmbeddings(promptEmbeddings.slice(category.prompts.length));
+  const embedding = averageEmbeddings(promptEmbeddings);
   categories.push({
     id: category.id,
     labelKo: category.labelKo,
     labelEn: category.labelEn,
-    minimumScore: category.minimumScore,
+    similarityThreshold: category.similarityThreshold,
     prompts: category.prompts,
-    negativePrompts: category.negativePrompts,
-    promptEmbeddings: promptEmbeddings
-      .slice(0, category.prompts.length)
-      .map((values) => Array.from(values, (value) => Number(value.toFixed(8)))),
-    negativePromptEmbeddings: promptEmbeddings
-      .slice(category.prompts.length)
-      .map((values) => Array.from(values, (value) => Number(value.toFixed(8)))),
+    promptEmbeddings: promptEmbeddings.map((values) =>
+      Array.from(values, (value) => Number(value.toFixed(8))),
+    ),
     embedding: Array.from(embedding, (value) => Number(value.toFixed(8))),
-    negativeEmbedding: Array.from(negativeEmbedding, (value) => Number(value.toFixed(8))),
   });
   console.log(`생성 완료: ${category.labelKo}`);
 }
@@ -74,7 +67,7 @@ for (const category of DEFAULT_CATEGORIES) {
 await model.dispose();
 
 const payload = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   model: MODEL_CONFIG.id,
   revision: MODEL_CONFIG.revision,
   modelVersion: MODEL_CONFIG.modelVersion,
@@ -84,7 +77,7 @@ const payload = {
   embeddingDimension: MODEL_CONFIG.embeddingDimension,
   normalized: true,
   aggregation: "L2-normalized prompt mean, then L2-normalized",
-  scoring: "independent binary softmax against category-specific negative embedding",
+  scoring: "maximum positive prompt similarity across full image and 2x2 crops",
   generatedAt: new Date().toISOString(),
   categories,
 };

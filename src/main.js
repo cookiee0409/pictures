@@ -21,6 +21,7 @@ let files = [];
 let mode = "default";
 let busy = false;
 let textConsentGranted = false;
+let lastClassificationResults = [];
 let worker = null;
 let workerRequestId = 0;
 let pendingWorkerRequests = new Map();
@@ -380,6 +381,7 @@ async function runClassification() {
       labels = new Map(queries.map((query, index) => [`query-${index}`, query]));
     }
     renderResults(results, labels);
+    lastClassificationResults = results;
     $("runStatus").textContent = `완료 — ${files.length}장 분석 · ${mode === "default" ? "기본 자동분류" : "자유 검색"}`;
   } catch (error) {
     console.error(error);
@@ -610,6 +612,7 @@ async function init() {
       embeddedCount: embeddedIds.size,
       modelState: structuredClone(modelState),
     }),
+    getLastResults: () => structuredClone(lastClassificationResults),
   };
 }
 

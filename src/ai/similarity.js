@@ -47,63 +47,81 @@ export function softmax(values, temperature = 100) {
   return exps.map((value) => value / sum);
 }
 
-export function binarySimilarityScore(
-  imageEmbedding,
-  positiveEmbedding,
-  negativeEmbedding,
-  temperature = 50,
-) {
-  const positiveSimilarity = cosineSimilarity(imageEmbedding, positiveEmbedding);
-  const negativeSimilarity = cosineSimilarity(imageEmbedding, negativeEmbedding);
-  const [score] = softmax([positiveSimilarity, negativeSimilarity], temperature);
-  return {
-    score,
-    similarity: positiveSimilarity,
-    negativeSimilarity,
-    margin: positiveSimilarity - negativeSimilarity,
-  };
+function embeddingList(imageEmbeddingOrEmbeddings) {
+  return Array.isArray(imageEmbeddingOrEmbeddings)
+    ? imageEmbeddingOrEmbeddings
+    : [imageEmbeddingOrEmbeddings];
 }
 
-function maximumSimilarity(imageEmbedding, embeddings) {
+function maximumSimilarityEvidence(imageEmbeddings, promptEmbeddings) {
   let maximum = -Infinity;
-  for (const embedding of embeddings) {
-    maximum = Math.max(maximum, cosineSimilarity(imageEmbedding, embedding));
+  let viewIndex = -1;
+  let promptIndex = -1;
+  for (const [currentViewIndex, imageEmbedding] of embeddingList(imageEmbeddings).entries()) {
+    for (const [currentPromptIndex, promptEmbedding] of promptEmbeddings.entries()) {
+      const similarity = cosineSimilarity(imageEmbedding, promptEmbedding);
+      if (similarity > maximum) {
+        maximum = similarity;
+        viewIndex = currentViewIndex;
+        promptIndex = currentPromptIndex;
+      }
+    }
   }
-  return maximum;
+  return { similarity: maximum, viewIndex, promptIndex };
 }
 
-export function scoreCandidatesIndependently(imageEmbedding, candidates, temperature = 50) {
+function maximumSimilarity(imageEmbeddings, promptEmbeddings) {
+  return maximumSimilarityEvidence(imageEmbeddings, promptEmbeddings).similarity;
+}
+
+function fullImageSimilarity(imageEmbeddings, promptEmbeddings) {
+  const [fullImageEmbedding] = embeddingList(imageEmbeddings);
+  return maximumSimilarity(fullImageEmbedding, promptEmbeddings);
+}
+
+export function calibratedSimilarityScore(similarity, threshold, scale = 40) {
+  return 1 / (1 + Math.exp(-(similarity - threshold) * scale));
+}
+
+export function scoreCandidatesIndependently(imageEmbeddings, candidates) {
   return candidates
     .map((candidate) => {
-      const positiveSimilarity = maximumSimilarity(
-        imageEmbedding,
+      const evidence = maximumSimilarityEvidence(
+        imageEmbeddings,
         candidate.promptEmbeddings ?? [candidate.embedding],
       );
-      const negativeSimilarity = maximumSimilarity(
-        imageEmbedding,
-        candidate.negativePromptEmbeddings ?? [candidate.negativeEmbedding],
+      const positiveSimilarity = evidence.similarity;
+      const fullSimilarity = fullImageSimilarity(
+        imageEmbeddings,
+        candidate.promptEmbeddings ?? [candidate.embedding],
       );
-      const [score] = softmax([positiveSimilarity, negativeSimilarity], temperature);
+      const similarityThreshold = candidate.similarityThreshold ?? 0.24;
+      const score = calibratedSimilarityScore(
+        positiveSimilarity,
+        similarityThreshold,
+      );
       return {
         id: candidate.id,
         label: candidate.label,
-        minimumScore: candidate.minimumScore,
+        similarityThreshold,
         score,
         similarity: positiveSimilarity,
-        negativeSimilarity,
-        margin: positiveSimilarity - negativeSimilarity,
+        fullSimilarity,
+        evidenceViewIndex: evidence.viewIndex,
+        evidencePromptIndex: evidence.promptIndex,
+        margin: positiveSimilarity - similarityThreshold,
       };
     })
     .sort((left, right) => right.score - left.score);
 }
 
 export function passesIndependentThreshold(candidate, userThreshold) {
-  return candidate.score >= Math.max(userThreshold, candidate.minimumScore ?? 0.5);
+  return candidate.score >= userThreshold;
 }
 
-export function rankCandidates(imageEmbedding, candidates, temperature = 100) {
+export function rankCandidates(imageEmbeddings, candidates, temperature = 100) {
   const similarities = candidates.map((candidate) =>
-    cosineSimilarity(imageEmbedding, candidate.embedding),
+    maximumSimilarity(imageEmbeddings, candidate.promptEmbeddings ?? [candidate.embedding]),
   );
   const probabilities = softmax(similarities, temperature);
   return candidates

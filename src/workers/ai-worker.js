@@ -144,6 +144,22 @@ async function ensureCategoryData() {
   return categoryDataPromise;
 }
 
+async function createImageViews(image) {
+  const width = image.width;
+  const height = image.height;
+  const overlapX = Math.round(width * 0.08);
+  const overlapY = Math.round(height * 0.08);
+  const middleX = Math.floor(width / 2);
+  const middleY = Math.floor(height / 2);
+  const crops = await Promise.all([
+    image.crop([0, 0, middleX + overlapX, middleY + overlapY]),
+    image.crop([middleX - overlapX, 0, width - 1, middleY + overlapY]),
+    image.crop([0, middleY - overlapY, middleX + overlapX, height - 1]),
+    image.crop([middleX - overlapX, middleY - overlapY, width - 1, height - 1]),
+  ]);
+  return [image, ...crops];
+}
+
 async function analyzeFiles(files) {
   await loadVisionModel();
   const startedAt = performance.now();
@@ -154,9 +170,19 @@ async function analyzeFiles(files) {
       continue;
     }
     const image = await RawImage.read(item.file);
-    const inputs = await processor(image);
+    const views = await createImageViews(image);
+    const inputs = await processor(views);
     const { image_embeds: imageEmbeds } = await visionModel(inputs);
-    imageEmbeddings.set(item.id, l2Normalize(imageEmbeds.data));
+    const embeddings = [];
+    for (let row = 0; row < imageEmbeds.dims[0]; row += 1) {
+      const start = row * MODEL_CONFIG.embeddingDimension;
+      embeddings.push(
+        l2Normalize(
+          imageEmbeds.data.slice(start, start + MODEL_CONFIG.embeddingDimension),
+        ),
+      );
+    }
+    imageEmbeddings.set(item.id, embeddings);
     imageEmbeds.dispose?.();
     for (const value of Object.values(inputs)) value?.dispose?.();
     completed += 1;
@@ -181,11 +207,9 @@ async function classifyDefault(ids, selectedCategoryIds, threshold) {
     .map((category) => ({
       id: category.id,
       label: category.labelKo,
-      minimumScore: category.minimumScore ?? 0.5,
+      similarityThreshold: category.similarityThreshold,
       embedding: category.embedding,
-      negativeEmbedding: category.negativeEmbedding,
       promptEmbeddings: category.promptEmbeddings,
-      negativePromptEmbeddings: category.negativePromptEmbeddings,
     }));
 
   const results = [];
@@ -205,6 +229,29 @@ async function classifyDefault(ids, selectedCategoryIds, threshold) {
         similarity,
         margin,
       })),
+      scores: ranked.map(
+        ({
+          id: categoryId,
+          label,
+          score,
+          similarity,
+          fullSimilarity,
+          evidenceViewIndex,
+          evidencePromptIndex,
+          margin,
+          similarityThreshold,
+        }) => ({
+          id: categoryId,
+          label,
+          score,
+          similarity,
+          fullSimilarity,
+          evidenceViewIndex,
+          evidencePromptIndex,
+          margin,
+          similarityThreshold,
+        }),
+      ),
       top3: ranked.slice(0, 3).map(({ id: candidateId, label, score }) => ({
         id: candidateId,
         label,
@@ -221,10 +268,7 @@ function translatedQuery(query) {
 
 async function embedPromptGroups(groups) {
   await loadTextModel();
-  const flatPrompts = groups.flatMap((group) => [
-    ...group.prompts,
-    ...group.negativePrompts,
-  ]);
+  const flatPrompts = groups.flatMap((group) => group.prompts);
   const inputs = tokenizer(flatPrompts, { padding: true, truncation: true });
   const { text_embeds: textEmbeds } = await textModel(inputs);
   const allEmbeddings = [];
@@ -241,18 +285,11 @@ async function embedPromptGroups(groups) {
   return groups.map((group) => {
     const positiveEmbeddings = allEmbeddings.slice(offset, offset + group.prompts.length);
     offset += group.prompts.length;
-    const negativeEmbeddings = allEmbeddings.slice(
-      offset,
-      offset + group.negativePrompts.length,
-    );
-    offset += group.negativePrompts.length;
     return {
       id: group.id,
       label: group.label,
       embedding: averageEmbeddings(positiveEmbeddings),
-      negativeEmbedding: averageEmbeddings(negativeEmbeddings),
       promptEmbeddings: positiveEmbeddings,
-      negativePromptEmbeddings: negativeEmbeddings,
     };
   });
 }
@@ -268,18 +305,12 @@ async function searchImages(ids, queries, threshold) {
         `an image containing ${translated}`,
         `a close-up photo of ${translated}`,
       ],
-      negativePrompts: [
-        `a photo without ${translated}`,
-        `an image unrelated to ${translated}`,
-        ...SEARCH_NEGATIVE_PROMPTS,
-      ],
     };
   });
   queryGroups.push({
     id: "other",
     label: "기타",
     prompts: SEARCH_NEGATIVE_PROMPTS,
-    negativePrompts: SEARCH_NEGATIVE_PROMPTS,
   });
   const candidates = await embedPromptGroups(queryGroups);
   const results = [];

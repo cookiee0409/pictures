@@ -3,7 +3,7 @@ import { MODEL_CONFIG } from "../config/model-config.js";
 let categoryDataPromise;
 
 export async function loadCategoryEmbeddings(url) {
-  categoryDataPromise ??= fetch(url, { cache: "force-cache" }).then(async (response) => {
+  categoryDataPromise ??= fetch(url, { cache: "no-cache" }).then(async (response) => {
     if (!response.ok) {
       throw new Error(`카테고리 임베딩을 불러오지 못했습니다. (${response.status})`);
     }
@@ -14,11 +14,7 @@ export async function loadCategoryEmbeddings(url) {
       categories: data.categories.map((category) => ({
         ...category,
         embedding: Float32Array.from(category.embedding),
-        negativeEmbedding: Float32Array.from(category.negativeEmbedding),
         promptEmbeddings: category.promptEmbeddings.map((values) => Float32Array.from(values)),
-        negativePromptEmbeddings: category.negativePromptEmbeddings.map((values) =>
-          Float32Array.from(values),
-        ),
       })),
     };
   });
@@ -44,9 +40,6 @@ export function validateCategoryEmbeddings(data) {
     if (category.embedding?.length !== MODEL_CONFIG.embeddingDimension) {
       throw new Error(`${category.id} 카테고리 임베딩 차원이 올바르지 않습니다.`);
     }
-    if (category.negativeEmbedding?.length !== MODEL_CONFIG.embeddingDimension) {
-      throw new Error(`${category.id} 부정 임베딩 차원이 올바르지 않습니다.`);
-    }
     if (
       !category.promptEmbeddings?.length ||
       category.promptEmbeddings.some(
@@ -54,14 +47,6 @@ export function validateCategoryEmbeddings(data) {
       )
     ) {
       throw new Error(`${category.id} 프롬프트 임베딩이 올바르지 않습니다.`);
-    }
-    if (
-      !category.negativePromptEmbeddings?.length ||
-      category.negativePromptEmbeddings.some(
-        (embedding) => embedding.length !== MODEL_CONFIG.embeddingDimension,
-      )
-    ) {
-      throw new Error(`${category.id} 부정 프롬프트 임베딩이 올바르지 않습니다.`);
     }
   }
 }

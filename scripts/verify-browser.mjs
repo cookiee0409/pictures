@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright-core";
 import sharp from "sharp";
+import { createServer } from "vite";
 
 const APP_URL = process.env.APP_URL ?? "http://127.0.0.1:4173/";
 const CHROME_PATH =
@@ -54,6 +55,12 @@ await sharp({
   .jpeg()
   .toFile(personAnimalFixture.path);
 fixtures.push(personAnimalFixture);
+
+const appServer = await createServer({
+  server: { host: "127.0.0.1", port: 4173 },
+  configLoader: "runner",
+});
+await appServer.listen();
 
 const report = {
   testedAt: new Date().toISOString(),
@@ -354,7 +361,11 @@ async function fullChromeVerification() {
   );
   const errorText = await page.locator("#visionStatus").innerText();
   await page.click("#visionAction");
-  await waitForModel(page, "vision");
+  await page.waitForFunction(
+    () => window.__PHOTO_SORTER_DEBUG__.getState().modelState.vision.status === "ready",
+    null,
+    { timeout: 480_000 },
+  );
   const retryState = await page.evaluate(
     () => window.__PHOTO_SORTER_DEBUG__.getState().modelState.vision,
   );
@@ -433,6 +444,7 @@ try {
 for (const context of openedContexts) {
   await context.close().catch(() => {});
 }
+await appServer.close();
 
 await writeFile(
   join(REPORT_DIR, "browser-test-results.json"),

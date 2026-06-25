@@ -1,5 +1,5 @@
 export const TRANSFORMERS_VERSION = "3.8.1";
-export const CATEGORY_EMBEDDINGS_VERSION = "independent-multilabel-v2";
+export const CATEGORY_EMBEDDINGS_VERSION = "multi-crop-positive-only-v7";
 
 export const MODEL_CONFIG = Object.freeze({
   id: "Xenova/clip-vit-base-patch32",
