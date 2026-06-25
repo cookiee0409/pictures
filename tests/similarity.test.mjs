@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   averageEmbeddings,
+  binarySimilarityScore,
   cosineSimilarity,
   l2Normalize,
+  passesIndependentThreshold,
   rankCandidates,
+  scoreCandidatesIndependently,
   softmax,
 } from "../src/ai/similarity.js";
 
@@ -40,4 +43,50 @@ test("softmax와 rankCandidates는 가장 가까운 후보를 먼저 반환한�
   );
   assert.equal(ranked[0].id, "a");
   assert.ok(ranked[0].score > 0.99);
+});
+
+test("카테고리별 이진 점수는 다른 카테고리 수와 무관하다", () => {
+  const image = new Float32Array([1, 0]);
+  const positive = new Float32Array([1, 0]);
+  const negative = new Float32Array([0, 1]);
+  const result = binarySimilarityScore(image, positive, negative, 10);
+  assert.ok(result.score > 0.99);
+  assert.ok(result.margin > 0);
+});
+
+test("독립 점수에서는 여러 카테고리가 동시에 기준을 넘을 수 있다", () => {
+  const image = l2Normalize([1, 1]);
+  const candidates = [
+    {
+      id: "person",
+      label: "사람",
+      embedding: l2Normalize([1, 0.8]),
+      negativeEmbedding: l2Normalize([-1, 0]),
+    },
+    {
+      id: "animal",
+      label: "동물",
+      embedding: l2Normalize([0.8, 1]),
+      negativeEmbedding: l2Normalize([0, -1]),
+    },
+  ];
+  const matches = scoreCandidatesIndependently(image, candidates, 10).filter(
+    ({ score }) => score >= 0.5,
+  );
+  assert.deepEqual(matches.map(({ id }) => id).sort(), ["animal", "person"]);
+});
+
+test("카테고리 보정 최소 점수는 사용자 기준보다 우선한다", () => {
+  assert.equal(
+    passesIndependentThreshold({ score: 0.64, minimumScore: 0.65 }, 0.5),
+    false,
+  );
+  assert.equal(
+    passesIndependentThreshold({ score: 0.81, minimumScore: 0.65 }, 0.5),
+    true,
+  );
+  assert.equal(
+    passesIndependentThreshold({ score: 0.81, minimumScore: 0.65 }, 0.85),
+    false,
+  );
 });

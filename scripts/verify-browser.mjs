@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright-core";
+import sharp from "sharp";
 
 const APP_URL = process.env.APP_URL ?? "http://127.0.0.1:4173/";
 const CHROME_PATH =
@@ -30,6 +31,29 @@ for (const fixture of fixtures) {
   fixture.path = join(fixtureDir, fixture.name);
   await writeFile(fixture.path, Buffer.from(await response.arrayBuffer()));
 }
+const personAnimalFixture = {
+  name: "person-and-animal.jpg",
+  path: join(fixtureDir, "person-and-animal.jpg"),
+};
+const [catsHalf, peopleHalf] = await Promise.all([
+  sharp(fixtures[0].path).resize(500, 500, { fit: "cover" }).jpeg().toBuffer(),
+  sharp(fixtures[1].path).resize(500, 500, { fit: "cover" }).jpeg().toBuffer(),
+]);
+await sharp({
+  create: {
+    width: 1000,
+    height: 500,
+    channels: 3,
+    background: "#ffffff",
+  },
+})
+  .composite([
+    { input: catsHalf, left: 0, top: 0 },
+    { input: peopleHalf, left: 500, top: 0 },
+  ])
+  .jpeg()
+  .toFile(personAnimalFixture.path);
+fixtures.push(personAnimalFixture);
 
 const report = {
   testedAt: new Date().toISOString(),
@@ -38,6 +62,7 @@ const report = {
   edge: {},
   failures: [],
 };
+const openedContexts = [];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -113,6 +138,7 @@ async function fullChromeVerification() {
     headless: true,
     viewport: { width: 1280, height: 900 },
   });
+  openedContexts.push(context);
   let page = context.pages()[0] ?? (await context.newPage());
   let network = collectNetwork(page);
   const consoleErrors = [];
@@ -127,7 +153,7 @@ async function fullChromeVerification() {
 
   await page.setInputFiles("#fileInput", fixtures.map((fixture) => fixture.path));
   await page.waitForFunction(
-    () => window.__PHOTO_SORTER_DEBUG__.getState().fileCount === 2,
+    () => window.__PHOTO_SORTER_DEBUG__.getState().fileCount === 3,
     null,
     { timeout: 10_000 },
   );
@@ -160,8 +186,24 @@ async function fullChromeVerification() {
       .filter((group) => group.images.length),
   );
   assert(
-    defaultAssignments.some((group) => group.images.includes("cats.jpg")),
-    "고양이 테스트 이미지가 기본 자동분류 결과에 나타나지 않았습니다.",
+    defaultAssignments.some(
+      (group) => group.title.includes("동물") && group.images.includes("cats.jpg"),
+    ),
+    "고양이 테스트 이미지가 동물 카테고리에 나타나지 않았습니다.",
+  );
+  assert(
+    defaultAssignments.some(
+      (group) =>
+        group.title.includes("사람") && group.images.includes("person-and-animal.jpg"),
+    ),
+    "사람+동물 테스트 이미지가 사람 카테고리에 나타나지 않았습니다.",
+  );
+  assert(
+    defaultAssignments.some(
+      (group) =>
+        group.title.includes("동물") && group.images.includes("person-and-animal.jpg"),
+    ),
+    "사람+동물 테스트 이미지가 동물 카테고리에 나타나지 않았습니다.",
   );
 
   const textRequestsBeforeMode = afterDefault.filter(({ url }) =>
@@ -254,6 +296,7 @@ async function fullChromeVerification() {
     headless: true,
     viewport: { width: 1280, height: 900 },
   });
+  openedContexts.push(context);
   page = context.pages()[0] ?? (await context.newPage());
   network = collectNetwork(page);
   let blockedHuggingFaceRequests = 0;
@@ -294,6 +337,7 @@ async function fullChromeVerification() {
     headless: true,
     viewport: { width: 1280, height: 900 },
   });
+  openedContexts.push(context);
   page = context.pages()[0] ?? (await context.newPage());
   await page.goto(`${APP_URL}?testModelError=vision`, {
     waitUntil: "domcontentloaded",
@@ -340,6 +384,7 @@ async function edgeSmokeVerification() {
     headless: true,
     viewport: { width: 1280, height: 900 },
   });
+  openedContexts.push(context);
   const page = context.pages()[0] ?? (await context.newPage());
   const network = collectNetwork(page);
   await waitForApp(page);
@@ -383,6 +428,10 @@ try {
 } catch (error) {
   report.failures.push({ browser: "Edge", message: error.message, stack: error.stack });
   console.error(error);
+}
+
+for (const context of openedContexts) {
+  await context.close().catch(() => {});
 }
 
 await writeFile(

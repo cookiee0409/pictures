@@ -131,9 +131,10 @@
         <div class="option-row">
           <div class="grow">
             <label class="field-label" for="threshold">
-              민감도 (최소 신뢰도): <span id="thresholdValue">0.50</span>
+              사용자 최소 점수: <span id="thresholdValue">0.50</span>
             </label>
             <input type="range" id="threshold" min="0.05" max="0.95" step="0.05" value="0.50" />
+            <small class="muted">각 기본 카테고리의 보정된 최소 점수보다 낮게 설정되지는 않습니다.</small>
           </div>
         </div>
         <div class="action-row">

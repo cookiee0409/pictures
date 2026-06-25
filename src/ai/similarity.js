@@ -47,6 +47,60 @@ export function softmax(values, temperature = 100) {
   return exps.map((value) => value / sum);
 }
 
+export function binarySimilarityScore(
+  imageEmbedding,
+  positiveEmbedding,
+  negativeEmbedding,
+  temperature = 50,
+) {
+  const positiveSimilarity = cosineSimilarity(imageEmbedding, positiveEmbedding);
+  const negativeSimilarity = cosineSimilarity(imageEmbedding, negativeEmbedding);
+  const [score] = softmax([positiveSimilarity, negativeSimilarity], temperature);
+  return {
+    score,
+    similarity: positiveSimilarity,
+    negativeSimilarity,
+    margin: positiveSimilarity - negativeSimilarity,
+  };
+}
+
+function maximumSimilarity(imageEmbedding, embeddings) {
+  let maximum = -Infinity;
+  for (const embedding of embeddings) {
+    maximum = Math.max(maximum, cosineSimilarity(imageEmbedding, embedding));
+  }
+  return maximum;
+}
+
+export function scoreCandidatesIndependently(imageEmbedding, candidates, temperature = 50) {
+  return candidates
+    .map((candidate) => {
+      const positiveSimilarity = maximumSimilarity(
+        imageEmbedding,
+        candidate.promptEmbeddings ?? [candidate.embedding],
+      );
+      const negativeSimilarity = maximumSimilarity(
+        imageEmbedding,
+        candidate.negativePromptEmbeddings ?? [candidate.negativeEmbedding],
+      );
+      const [score] = softmax([positiveSimilarity, negativeSimilarity], temperature);
+      return {
+        id: candidate.id,
+        label: candidate.label,
+        minimumScore: candidate.minimumScore,
+        score,
+        similarity: positiveSimilarity,
+        negativeSimilarity,
+        margin: positiveSimilarity - negativeSimilarity,
+      };
+    })
+    .sort((left, right) => right.score - left.score);
+}
+
+export function passesIndependentThreshold(candidate, userThreshold) {
+  return candidate.score >= Math.max(userThreshold, candidate.minimumScore ?? 0.5);
+}
+
 export function rankCandidates(imageEmbedding, candidates, temperature = 100) {
   const similarities = candidates.map((candidate) =>
     cosineSimilarity(imageEmbedding, candidate.embedding),

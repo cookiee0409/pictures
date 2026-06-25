@@ -10,7 +10,9 @@ import { loadCategoryEmbeddings } from "../ai/category-embeddings.js";
 import {
   averageEmbeddings,
   l2Normalize,
+  passesIndependentThreshold,
   rankCandidates,
+  scoreCandidatesIndependently,
 } from "../ai/similarity.js";
 import {
   KO_EN,
@@ -175,24 +177,34 @@ async function classifyDefault(ids, selectedCategoryIds, threshold) {
   const data = await ensureCategoryData();
   const selected = new Set(selectedCategoryIds);
   const candidates = data.categories
-    .filter((category) => selected.has(category.id) || category.id === "other")
+    .filter((category) => selected.has(category.id))
     .map((category) => ({
       id: category.id,
       label: category.labelKo,
+      minimumScore: category.minimumScore ?? 0.5,
       embedding: category.embedding,
+      negativeEmbedding: category.negativeEmbedding,
+      promptEmbeddings: category.promptEmbeddings,
+      negativePromptEmbeddings: category.negativePromptEmbeddings,
     }));
 
   const results = [];
   for (const id of ids) {
     const embedding = imageEmbeddings.get(id);
     if (!embedding) throw new Error(`${id} 이미지 임베딩이 없습니다.`);
-    const ranked = rankCandidates(embedding, candidates);
-    const top = ranked[0];
+    const ranked = scoreCandidatesIndependently(embedding, candidates);
+    const matches = ranked.filter((candidate) =>
+      passesIndependentThreshold(candidate, threshold),
+    );
     results.push({
       id,
-      categoryId: top.id !== "other" && top.score >= threshold ? top.id : null,
-      score: top.score,
-      similarity: top.similarity,
+      matches: matches.map(({ id: categoryId, label, score, similarity, margin }) => ({
+        id: categoryId,
+        label,
+        score,
+        similarity,
+        margin,
+      })),
       top3: ranked.slice(0, 3).map(({ id: candidateId, label, score }) => ({
         id: candidateId,
         label,
@@ -209,7 +221,10 @@ function translatedQuery(query) {
 
 async function embedPromptGroups(groups) {
   await loadTextModel();
-  const flatPrompts = groups.flatMap((group) => group.prompts);
+  const flatPrompts = groups.flatMap((group) => [
+    ...group.prompts,
+    ...group.negativePrompts,
+  ]);
   const inputs = tokenizer(flatPrompts, { padding: true, truncation: true });
   const { text_embeds: textEmbeds } = await textModel(inputs);
   const allEmbeddings = [];
@@ -224,12 +239,20 @@ async function embedPromptGroups(groups) {
 
   let offset = 0;
   return groups.map((group) => {
-    const embeddings = allEmbeddings.slice(offset, offset + group.prompts.length);
+    const positiveEmbeddings = allEmbeddings.slice(offset, offset + group.prompts.length);
     offset += group.prompts.length;
+    const negativeEmbeddings = allEmbeddings.slice(
+      offset,
+      offset + group.negativePrompts.length,
+    );
+    offset += group.negativePrompts.length;
     return {
       id: group.id,
       label: group.label,
-      embedding: averageEmbeddings(embeddings),
+      embedding: averageEmbeddings(positiveEmbeddings),
+      negativeEmbedding: averageEmbeddings(negativeEmbeddings),
+      promptEmbeddings: positiveEmbeddings,
+      negativePromptEmbeddings: negativeEmbeddings,
     };
   });
 }
@@ -245,12 +268,18 @@ async function searchImages(ids, queries, threshold) {
         `an image containing ${translated}`,
         `a close-up photo of ${translated}`,
       ],
+      negativePrompts: [
+        `a photo without ${translated}`,
+        `an image unrelated to ${translated}`,
+        ...SEARCH_NEGATIVE_PROMPTS,
+      ],
     };
   });
   queryGroups.push({
     id: "other",
     label: "기타",
     prompts: SEARCH_NEGATIVE_PROMPTS,
+    negativePrompts: SEARCH_NEGATIVE_PROMPTS,
   });
   const candidates = await embedPromptGroups(queryGroups);
   const results = [];
@@ -259,11 +288,27 @@ async function searchImages(ids, queries, threshold) {
     if (!embedding) throw new Error(`${id} 이미지 임베딩이 없습니다.`);
     const ranked = rankCandidates(embedding, candidates);
     const top = ranked[0];
+    const matches =
+      top.id !== "other" && top.score >= threshold
+        ? [
+            {
+              id: top.id,
+              label: top.label,
+              score: top.score,
+              similarity: top.similarity,
+              margin: null,
+            },
+          ]
+        : [];
     results.push({
       id,
-      categoryId: top.id !== "other" && top.score >= threshold ? top.id : null,
-      score: top.score,
-      similarity: top.similarity,
+      matches: matches.map(({ id: categoryId, label, score, similarity, margin }) => ({
+        id: categoryId,
+        label,
+        score,
+        similarity,
+        margin,
+      })),
       top3: ranked.slice(0, 3).map(({ id: candidateId, label, score }) => ({
         id: candidateId,
         label,

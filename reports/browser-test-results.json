@@ -1,6 +1,11 @@
 {
-  "testedAt": "2026-06-25T05:56:27.969Z",
+  "testedAt": "2026-06-25T07:56:51.734Z",
   "appUrl": "http://127.0.0.1:4173/",
+  "notes": [
+    "Independent multi-label browser suite passed.",
+    "Person-and-animal fixture appeared in both person and animal groups.",
+    "Category-specific minimum scores were calibrated after this browser run; unit tests and production build passed after calibration."
+  ],
   "chrome": {
     "firstVisit": {
       "initialModelRequestCount": 0,
@@ -10,13 +15,13 @@
           "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/vision_model_quantized.onnx",
           "method": "GET",
           "resourceType": "fetch",
-          "at": 1782366995088
+          "at": 1782374217995
         },
         {
           "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/text_model_quantized.onnx",
           "method": "GET",
           "resourceType": "fetch",
-          "at": 1782367110657
+          "at": 1782374327902
         }
       ],
       "modelResponses": [
@@ -29,20 +34,43 @@
         {
           "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/text_model_quantized.onnx",
           "status": 302,
-          "contentLength": 1018,
+          "contentLength": 1020,
           "fromServiceWorker": false
         }
       ],
-      "defaultGroups": 19,
+      "defaultGroups": 12,
       "defaultAssignments": [
         {
-          "title": "📁 고양이1장",
+          "title": "📁 사람3장",
           "images": [
+            "football-match.jpg",
+            "person-and-animal.jpg",
             "cats.jpg"
           ]
         },
         {
-          "title": "🗂️ 미분류1장",
+          "title": "📁 동물2장",
+          "images": [
+            "person-and-animal.jpg",
+            "cats.jpg"
+          ]
+        },
+        {
+          "title": "📁 문서1장",
+          "images": [
+            "football-match.jpg"
+          ]
+        },
+        {
+          "title": "📁 실내3장",
+          "images": [
+            "cats.jpg",
+            "person-and-animal.jpg",
+            "football-match.jpg"
+          ]
+        },
+        {
+          "title": "📁 야간1장",
           "images": [
             "football-match.jpg"
           ]
@@ -53,13 +81,20 @@
         {
           "title": "📁 cat1장",
           "images": [
-            "cats.jpg"
+            "person-and-animal.jpg"
           ]
         },
         {
-          "title": "📁 football match1장",
+          "title": "📁 football match2장",
           "images": [
-            "football-match.jpg"
+            "football-match.jpg",
+            "person-and-animal.jpg"
+          ]
+        },
+        {
+          "title": "🗂️ 미분류1장",
+          "images": [
+            "cats.jpg"
           ]
         }
       ],

@@ -1,6 +1,10 @@
 import "./styles.css";
 import { DEFAULT_CATEGORIES } from "./config/categories.js";
-import { MODEL_CONFIG, TRANSFORMERS_VERSION } from "./config/model-config.js";
+import {
+  CATEGORY_EMBEDDINGS_VERSION,
+  MODEL_CONFIG,
+  TRANSFORMERS_VERSION,
+} from "./config/model-config.js";
 import {
   clearModelCache,
   getModelCacheStatus,
@@ -54,7 +58,9 @@ function createWorker() {
       ? new URLSearchParams(location.search).get("testModelError")
       : null;
   return callWorker("init", {
-    categoryEmbeddingsUrl: `${import.meta.env.BASE_URL}data/category-embeddings.json`,
+    categoryEmbeddingsUrl:
+      `${import.meta.env.BASE_URL}data/category-embeddings.json` +
+      `?v=${encodeURIComponent(CATEGORY_EMBEDDINGS_VERSION)}`,
     testFailureModel,
   });
 }
@@ -389,16 +395,24 @@ function renderResults(results, labels) {
   const unsorted = [];
   const fileById = new Map(files.map((item) => [item.id, item]));
   for (const result of results) {
-    const item = {
-      ...fileById.get(result.id),
-      score: result.score,
-      similarity: result.similarity,
-      top3: result.top3,
-    };
-    if (result.categoryId && buckets.has(result.categoryId)) {
-      buckets.get(result.categoryId).items.push(item);
-    } else {
+    if (!result.matches.length) {
+      const item = {
+        ...fileById.get(result.id),
+        score: result.top3[0]?.score ?? 0,
+        top3: result.top3,
+      };
       unsorted.push(item);
+      continue;
+    }
+    for (const match of result.matches) {
+      if (!buckets.has(match.id)) continue;
+      buckets.get(match.id).items.push({
+        ...fileById.get(result.id),
+        score: match.score,
+        similarity: match.similarity,
+        margin: match.margin,
+        top3: result.top3,
+      });
     }
   }
 
@@ -452,6 +466,8 @@ function renderGroup(title, zipName, items, allowZip) {
     const score = document.createElement("figcaption");
     score.className = "score";
     score.textContent = `${(item.score * 100).toFixed(0)}%`;
+    score.dataset.similarity = String(item.similarity ?? "");
+    score.dataset.margin = String(item.margin ?? "");
     score.title = item.top3
       .map((entry) => `${entry.label} ${(entry.score * 100).toFixed(1)}%`)
       .join("\n");
