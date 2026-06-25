@@ -1,0 +1,22 @@
+{
+  "name": "private-photo-sorter",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "generate:embeddings": "node scripts/generate-category-embeddings.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "verify:browser": "node scripts/verify-browser.mjs"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {
+    "playwright-core": "1.61.1",
+    "vite": "7.3.6"
+  }
+}

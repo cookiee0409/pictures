@@ -1,0 +1,93 @@
+{
+  "testedAt": "2026-06-25T05:56:27.969Z",
+  "appUrl": "http://127.0.0.1:4173/",
+  "chrome": {
+    "firstVisit": {
+      "initialModelRequestCount": 0,
+      "modelRequestsAfterFileSelection": 0,
+      "modelRequests": [
+        {
+          "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/vision_model_quantized.onnx",
+          "method": "GET",
+          "resourceType": "fetch",
+          "at": 1782366995088
+        },
+        {
+          "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/text_model_quantized.onnx",
+          "method": "GET",
+          "resourceType": "fetch",
+          "at": 1782367110657
+        }
+      ],
+      "modelResponses": [
+        {
+          "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/vision_model_quantized.onnx",
+          "status": 302,
+          "contentLength": 1030,
+          "fromServiceWorker": false
+        },
+        {
+          "url": "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/text_model_quantized.onnx",
+          "status": 302,
+          "contentLength": 1018,
+          "fromServiceWorker": false
+        }
+      ],
+      "defaultGroups": 19,
+      "defaultAssignments": [
+        {
+          "title": "📁 고양이1장",
+          "images": [
+            "cats.jpg"
+          ]
+        },
+        {
+          "title": "🗂️ 미분류1장",
+          "images": [
+            "football-match.jpg"
+          ]
+        }
+      ],
+      "searchGroups": 3,
+      "searchAssignments": [
+        {
+          "title": "📁 cat1장",
+          "images": [
+            "cats.jpg"
+          ]
+        },
+        {
+          "title": "📁 football match1장",
+          "images": [
+            "football-match.jpg"
+          ]
+        }
+      ],
+      "zipFilename": "cat.zip",
+      "cacheModelFiles": [
+        "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/vision_model_quantized.onnx",
+        "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/d15189d7028b43f1d3e65039190477f6af591c2a/onnx/text_model_quantized.onnx"
+      ],
+      "consoleErrors": [],
+      "resetPreservedModels": true
+    },
+    "revisit": {
+      "cachedVision": true,
+      "cachedText": true,
+      "externalModelRequests": 0,
+      "observedModelRequests": 0
+    },
+    "errorRecovery": {
+      "injectedErrorText": "⚠️ 테스트용 이미지 모델 로딩 실패 · 다른 기능은 계속 사용할 수 있습니다.",
+      "retrySucceeded": true,
+      "photoCountAfterCacheClear": 1,
+      "cacheCleared": true
+    }
+  },
+  "edge": {
+    "initialModelRequestCount": 0,
+    "searchConsentVisible": true,
+    "modeSelectionModelRequestCount": 0
+  },
+  "failures": []
+}
